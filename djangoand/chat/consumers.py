@@ -19,7 +19,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.username = self.scope['url_route']['kwargs']['username']
         self.group_name = f'chat_{self.room_code}'
 
-        # Reject connection if room doesn't exist
         room = await self.get_room(self.room_code)
         if not room:
             await self.close(code=4004)
@@ -27,18 +26,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         self.room = room
 
-        # Join the channel group
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
-        # Send recent message history to the newly connected client
         history = await self.get_history(room)
         await self.send(text_data=json.dumps({
             'type': 'history',
             'messages': history,
         }))
 
-        # Broadcast join notification to everyone else
         await self.channel_layer.group_send(self.group_name, {
             'type': 'user_join',
             'username': self.username,
@@ -47,7 +43,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
-            # Notify others of departure
             await self.channel_layer.group_send(self.group_name, {
                 'type': 'user_leave',
                 'username': self.username,
@@ -64,10 +59,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if not text:
                 return
 
-            # Persist to database
             saved = await self.save_message(self.room, self.username, text)
 
-            # Broadcast to all group members
             await self.channel_layer.group_send(self.group_name, {
                 'type': 'chat_message',
                 'id': saved['id'],
@@ -77,15 +70,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             })
 
         elif msg_type == 'ping':
-            # Presence ping — clients send this to announce they're still online
             await self.channel_layer.group_send(self.group_name, {
                 'type': 'user_ping',
                 'username': self.username,
             })
 
-    # ──────────────────────────────────────────────
-    # Group message handlers (called by channel layer)
-    # ──────────────────────────────────────────────
 
     async def chat_message(self, event):
         """Broadcast a regular chat message to this WebSocket."""
@@ -117,9 +106,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'username': event['username'],
         }))
 
-    # ──────────────────────────────────────────────
-    # Database helpers (run synchronously in thread pool)
-    # ──────────────────────────────────────────────
 
     @database_sync_to_async
     def get_room(self, code):
