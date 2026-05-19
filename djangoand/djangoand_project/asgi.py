@@ -8,10 +8,7 @@ import chat.routing
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'djangoand_project.settings')
 
 application = ProtocolTypeRouter({
-    # HTTP requests → regular Django views
     'http': get_asgi_application(),
-
-    # WebSocket connections → chat consumers
     'websocket': AllowedHostsOriginValidator(
         AuthMiddlewareStack(
             URLRouter(chat.routing.websocket_urlpatterns)
